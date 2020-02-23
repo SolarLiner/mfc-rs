@@ -2,6 +2,10 @@ use std::fmt::{Debug, Display, Error, Formatter};
 
 use crate::env::FnSignature;
 
+type BEAst = Box<EAst>;
+type BCAst = Box<CAst>;
+type BSAst = Box<SAst>;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Binop {
     Add,
@@ -34,23 +38,23 @@ pub enum EAst {
     Cst(usize),
     Ref(RAst),
     ECall(RAst, Vec<EAst>),
-    Unop(Unop, Box<EAst>),
-    Binop(Binop, Box<EAst>, Box<EAst>),
+    Unop(Unop, BEAst),
+    Binop(Binop, BEAst, BEAst),
 }
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum CAst {
-    And(Box<CAst>, Box<CAst>),
-    Or(Box<CAst>, Box<CAst>),
-    Not(Box<CAst>),
+    And(BCAst, BCAst),
+    Or(BCAst, BCAst),
+    Not(BCAst),
     Cmp(Compare, EAst, EAst),
 }
 
 #[derive(Clone, Eq, PartialEq)]
 pub enum SAst {
     Set(RAst, EAst),
-    If(CAst, Box<SAst>, Box<SAst>),
-    While(CAst, Box<SAst>),
+    If(CAst, BSAst, BSAst),
+    While(CAst, BSAst),
     Call(RAst, Vec<EAst>),
     Ret(EAst),
     Declare(String),
