@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter, Result as FmtResult};
 use anyhow::Error;
 
 use crate::ast::*;
-use crate::env::{Env, FnSignature, Frame};
+use crate::env::{Env, FnSignature};
 use crate::quads::Quad::{QBinop, QBranch, QCmp, QLabel, QSeti};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -36,7 +36,7 @@ impl Quad {
                     q1.extend(vec![QIfp(v.clone(), off), QStr(v1, v)]);
                     Ok(q1)
                 }
-                None => Err(Error::from(QuadError::UnknownVariable(i))),
+                None => Err(Error::from(QuadError::UnknownSymbol(i))),
             },
             Block(v) => v
                 .into_iter()
@@ -64,7 +64,7 @@ impl Quad {
                             actual,
                         }))
                     }
-                    _ => unreachable!(),
+                    None => Err(Error::from(QuadError::UnknownSymbol(i))),
                 }
             }
             If(c, s1, s2) => {
@@ -220,7 +220,7 @@ impl Quad {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum QuadError {
-    UnknownVariable(String),
+    UnknownSymbol(String),
     MismatchedFunctionCall {
         name: String,
         expected: usize,
@@ -231,7 +231,7 @@ pub enum QuadError {
 impl Display for QuadError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            QuadError::UnknownVariable(s) => write!(f, "Unknown variable {}", s),
+            QuadError::UnknownSymbol(s) => write!(f, "Unknown symbol {}", s),
             QuadError::MismatchedFunctionCall {
                 name,
                 expected,

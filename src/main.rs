@@ -1,48 +1,27 @@
-use crate::ast::{Binop, CAst, Compare, EAst, RAst, SAst};
-use crate::env::{Env, FnSignature};
-use crate::quads::Quad;
+extern crate from_pest;
+#[macro_use]
+extern crate lazy_static;
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+
+use linefeed::{Interface, ReadResult};
 
 mod ast;
 mod env;
+mod parse;
 mod quads;
 
-fn main() {
-    let mut env = Env::new();
-    let expr = EAst::Binop(
-        Binop::Mult,
-        Box::new(EAst::Cst(35)),
-        Box::new(EAst::Binop(
-            Binop::Sub,
-            Box::new(EAst::Cst(40)),
-            Box::new(EAst::Ref(RAst::Id(format!("x")))),
-        )),
-    );
-    let stmt = SAst::Block(vec![
-        SAst::DeclareFun(FnSignature(format!("read"), 1, 1)),
-        SAst::Declare(format!("x")),
-        SAst::Set(
-            RAst::Id(format!("x")),
-            EAst::ECall(RAst::Id(format!("read")), vec![]),
-        ),
-        SAst::If(
-            CAst::Cmp(
-                Compare::Lt,
-                EAst::Ref(RAst::Id(format!("x"))),
-                EAst::Cst(40),
-            ),
-            Box::new(SAst::Ret(expr)),
-            Box::new(SAst::Ret(EAst::Cst(0))),
-        ),
-    ]);
-    println!("{}", stmt);
-    let q = Quad::quad_s(stmt, &mut env);
-    let s = match q {
-        Ok(v) => v
-            .into_iter()
-            .map(|q| format!("{}", q))
-            .collect::<Vec<_>>()
-            .join("\n"),
-        Err(e) => format!("E: {:?}", e),
-    };
-    println!("\n{}", s);
+fn main() -> anyhow::Result<()> {
+    let mut reader = Interface::new("parser")?;
+    reader.set_prompt(">>> ")?;
+    while let ReadResult::Input(input) = reader.read_line()? {
+        match parse::parse(&input) {
+            Ok(p) => println!("{:?}", p),
+            Err(e) => eprintln!("Error! {}", e),
+        }
+        reader.add_history_unique(input);
+    }
+    println!("Bye");
+    Ok(())
 }

@@ -1,0 +1,19 @@
+//
+// Created by intellij-pest on 2020-02-16
+// grammar
+// Author: solarliner
+//
+
+WHITESPACE = _{" " | "\t" | "\r"? ~ "\n"}
+COMMENT = { ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ !"\n" ~ ANY) }
+
+number = { ASCII_DIGIT+ }
+ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
+
+root = _{ SOI ~ expr ~ EOI }
+    expr = { atom ~ (binop ~ atom)* }
+        binop = _{badd|bsub|bmul}
+            badd = {"+"}
+            bsub = {"-"}
+            bmul = {"*"}
+    atom = _{ number | "(" ~ expr ~ ")" }
