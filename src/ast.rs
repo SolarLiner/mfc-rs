@@ -58,7 +58,8 @@ pub enum SAst {
     Call(RAst, Vec<EAst>),
     Ret(EAst),
     Declare(String),
-    DeclareFun(FnSignature),
+    DeclareExternFun(FnSignature),
+    DeclareFun(FnSignature, Vec<SAst>),
     Block(Vec<SAst>),
 }
 
@@ -172,7 +173,20 @@ impl SAst {
             SAst::Ret(e) => format!("return {}", e),
             SAst::Set(r, e) => format!("{} = {}", r, e),
             SAst::Declare(i) => format!("var {}", i),
-            SAst::DeclareFun(FnSignature(n, r, q)) => format!("fun {}(r={}, q={})", n, r, q),
+            SAst::DeclareFun(FnSignature(s, r, q), b) => format!(
+                "fn {}(r={}, q={}) {{\n{is}{}\n{is}}}",
+                s,
+                r,
+                q,
+                b.into_iter()
+                    .map(|s| s.pinternal(indent + 1))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                is = is
+            ),
+            SAst::DeclareExternFun(FnSignature(n, r, q)) => {
+                format!("extern fun {}(r={}, q={})", n, r, q)
+            }
             SAst::Block(v) => format!(
                 "{}{{\n{}\n{}}}",
                 &is,

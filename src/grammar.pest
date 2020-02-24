@@ -4,22 +4,29 @@
 // Author: solarliner
 //
 
-WHITESPACE = _{" " | "\t" | "\r"? ~ "\n"}
-COMMENT = { ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ !"\n" ~ ANY) }
+WHITESPACE = _{" " | "\t"}
+COMMENT = _{ ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ (!"\n" ~ ANY)*) }
 
 number = { ASCII_DIGIT+ }
 ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
 fun_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
-root = _{ SOI ~ stmt ~ EOI }
-    stmt = _{ return_stmt | decl_stmt | assign_stmt | call_stmt }
-	decl_stmt = { "var" ~ ident }
-	assign_stmt = { ident ~ "=" ~ expr }
-	call_stmt = _{ fun_call }
-	return_stmt = { "return" ~ expr }
-    expr = { atom ~ (binop ~ atom)* }
-        binop = _{badd|bsub|bmul}
-            badd = {"+"}
-            bsub = {"-"}
-            bmul = {"*"}
-    atom = _{ fun_call | ident | number | "(" ~ expr ~ ")" }
+root = _{ SOI ~ decls ~ EOI }
+	decls = _{ decl ~ ("\n" ~ decl)* }
+	decl = _{ extern_fun_decl | fun_decl }
+    extern_fun_decl = { "extern" ~ "fun" ~ ident ~ "(" ~ (ident ~ ("," ~ ident)*)? ~ ")" }
+    fun_decl = { "fun" ~ ident ~ "(" ~ (ident ~ ("," ~ ident)*)? ~ ")" ~ forced_block }
+    forced_block = { "{" ~ "\n"? ~ stmts ~ "\n"? ~ "}" }
+    	stmts = _{ (stmt ~ ("\n" ~ stmt)*)? }
+	block = _{ forced_block | stmt }
+	    stmt = _{ return_stmt | decl_stmt | assign_stmt | call_stmt }
+		decl_stmt = { "var" ~ ident }
+		assign_stmt = { ident ~ "=" ~ expr }
+		call_stmt = _{ fun_call }
+		return_stmt = { "return" ~ expr }
+		expr = { atom ~ (binop ~ atom)* }
+		    binop = _{badd|bsub|bmul}
+			badd = {"+"}
+			bsub = {"-"}
+			bmul = {"*"}
+		    atom = _{ fun_call | ident | number | "(" ~ expr ~ ")" }

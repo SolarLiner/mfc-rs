@@ -1,10 +1,11 @@
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
-use pest::prec_climber::{Assoc, Operator, PrecClimber};
 use pest::Parser;
+use pest::prec_climber::{Assoc, Operator, PrecClimber};
 
 use crate::ast;
 use crate::ast::{EAst, RAst, SAst};
+use crate::env::FnSignature;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -33,7 +34,29 @@ pub fn parse_raw(input: &str) -> Result<Pairs<Rule>, Error<Rule>> {
 }
 
 fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
-    match pair.as_rule() {
+    match dbg!(&pair).as_rule() {
+        Rule::fun_decl => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_owned();
+            let mut args: Vec<_> = inner.collect();
+            let block = args.pop().unwrap();
+            let returns = block
+                .clone()
+                .into_inner()
+                .filter(|p| p.as_rule() == Rule::return_stmt)
+                .count();
+            SAst::DeclareFun(
+                FnSignature(ident, args.len(), returns.max(0).min(1)),
+                block.into_inner().map(into_ast_stmt).collect(),
+            )
+        }
+        Rule::extern_fun_decl => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_owned();
+            let args: Vec<_> = inner.collect();
+            SAst::DeclareExternFun(FnSignature(ident, args.len(), 0))
+        }
+        Rule::decls => SAst::Block(pair.into_inner().map(into_ast_stmt).collect()),
         Rule::decl_stmt => {
             let ident = pair
                 .into_inner()

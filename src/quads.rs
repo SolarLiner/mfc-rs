@@ -109,7 +109,13 @@ impl Quad {
                 env.new_local(s);
                 Ok(vec![])
             }
-            DeclareFun(FnSignature(s, r, p)) => {
+            DeclareFun(FnSignature(s, r, p), stmts) => {
+                env.new_function(s.clone(), FnSignature(s.clone(), r, p));
+                let mut quads = vec![QLabel(s)];
+                quads.extend(Self::quad_s(SAst::Block(stmts), env)?.into_iter());
+                Ok(quads)
+            }
+            DeclareExternFun(FnSignature(s, r, p)) => {
                 env.new_function(s.clone(), FnSignature(s, r, p));
                 Ok(vec![])
             }
