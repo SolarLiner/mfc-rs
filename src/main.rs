@@ -13,7 +13,7 @@ mod parse;
 mod quads;
 
 fn main() -> anyhow::Result<()> {
-    let mut reader = Interface::new("parser")?;
+    let reader = Interface::new("parser")?;
     reader.set_prompt(">>> ")?;
     while let ReadResult::Input(input) = reader.read_line()? {
         match parse::parse(&input) {

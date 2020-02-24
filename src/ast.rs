@@ -42,7 +42,7 @@ pub enum EAst {
     Binop(Binop, BEAst, BEAst),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CAst {
     And(BCAst, BCAst),
     Or(BCAst, BCAst),
@@ -50,7 +50,7 @@ pub enum CAst {
     Cmp(Compare, EAst, EAst),
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SAst {
     Set(RAst, EAst),
     If(CAst, BSAst, BSAst),

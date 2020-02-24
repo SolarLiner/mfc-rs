@@ -9,11 +9,16 @@ COMMENT = { ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ !"\n" ~ ANY) }
 
 number = { ASCII_DIGIT+ }
 ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
+fun_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
-root = _{ SOI ~ expr ~ EOI }
+root = _{ SOI ~ stmt ~ EOI }
+    stmt = _{ decl_stmt | assign_stmt | call_stmt }
+	decl_stmt = { "var" ~ ident }
+	assign_stmt = { ident ~ "=" ~ expr }
+	call_stmt = _{ fun_call }
     expr = { atom ~ (binop ~ atom)* }
         binop = _{badd|bsub|bmul}
             badd = {"+"}
             bsub = {"-"}
             bmul = {"*"}
-    atom = _{ number | "(" ~ expr ~ ")" }
+    atom = _{ fun_call | ident | number | "(" ~ expr ~ ")" }
