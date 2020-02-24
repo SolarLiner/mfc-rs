@@ -1,10 +1,10 @@
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
-use pest::Parser;
 use pest::prec_climber::{Assoc, Operator, PrecClimber};
+use pest::Parser;
 
 use crate::ast;
-use crate::ast::{EAst, RAst, SAst};
+use crate::ast::{CAst, EAst, RAst, SAst};
 use crate::env::FnSignature;
 
 #[derive(Parser)]
@@ -12,13 +12,18 @@ use crate::env::FnSignature;
 pub struct GENParser;
 
 lazy_static! {
-    static ref PREC_CLIMBER: PrecClimber<Rule> = {
+    static ref PC_EXPR: PrecClimber<Rule> = {
         use Assoc::*;
         use Rule::*;
         PrecClimber::new(vec![
             Operator::new(badd, Left) | Operator::new(bsub, Left),
             Operator::new(bmul, Left),
         ])
+    };
+    static ref PC_COND: PrecClimber<Rule> = {
+        use Assoc::*;
+        use Rule::*;
+        PrecClimber::new(vec![Operator::new(cand, Left), Operator::new(cor, Left)])
     };
 }
 
@@ -34,7 +39,7 @@ pub fn parse_raw(input: &str) -> Result<Pairs<Rule>, Error<Rule>> {
 }
 
 fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
-    match dbg!(&pair).as_rule() {
+    match pair.as_rule() {
         Rule::fun_decl => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_owned();
@@ -50,6 +55,9 @@ fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
                 block.into_inner().map(into_ast_stmt).collect(),
             )
         }
+        Rule::forced_block => SAst::Block(pair.into_inner().map(into_ast_stmt).collect()),
+        Rule::block => SAst::Block(pair.into_inner().map(into_ast_stmt).collect()),
+        Rule::stmt => pair.into_inner().map(into_ast_stmt).next().unwrap(),
         Rule::extern_fun_decl => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_owned();
@@ -79,16 +87,33 @@ fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
             SAst::Call(RAst::Id(ident), args)
         }
         Rule::return_stmt => SAst::Ret(into_ast_expr(pair.into_inner())),
+        Rule::if_stmt => {
+            let mut inner = pair.into_inner();
+            let cond = into_ast_cond(Pairs::single(inner.next().unwrap()));
+            let block = into_ast_stmt(inner.next().unwrap());
+            let belse = if let Some(p) = inner.next() {
+                into_ast_stmt(p)
+            } else {
+                SAst::Block(vec![])
+            };
+            SAst::If(cond, Box::from(block), Box::from(belse))
+        }
+        Rule::while_stmt => {
+            let mut inner = pair.into_inner();
+            let cond = inner.next().map(Pairs::single).map(into_ast_cond).unwrap();
+            let block = inner.next().map(into_ast_stmt).unwrap();
+            SAst::While(cond, Box::from(block))
+        }
         _ => unimplemented!(),
     }
 }
 
 fn into_ast_expr(pairs: Pairs<Rule>) -> EAst {
     use EAst::*;
-    PREC_CLIMBER.climb(
+    PC_EXPR.climb(
         pairs,
-        |pair: Pair<Rule>| match pair.as_rule() {
-            Rule::number => Cst(pair.as_str().parse().unwrap()),
+        |pair: Pair<Rule>| match dbg!(&pair).as_rule() {
+            Rule::number => Cst(pair.as_str().trim().parse().unwrap()),
             Rule::expr => into_ast_expr(pair.into_inner()),
             Rule::ident => {
                 let ident = pair.as_str().to_owned();
@@ -106,6 +131,47 @@ fn into_ast_expr(pairs: Pairs<Rule>) -> EAst {
             Rule::badd => Binop(ast::Binop::Add, Box::from(lhs), Box::from(rhs)),
             Rule::bsub => Binop(ast::Binop::Sub, Box::from(lhs), Box::from(rhs)),
             Rule::bmul => Binop(ast::Binop::Mult, Box::from(lhs), Box::from(rhs)),
+            _ => unreachable!(),
+        },
+    )
+}
+
+fn into_ast_cond(pairs: Pairs<Rule>) -> CAst {
+    use CAst::*;
+    PC_COND.climb(
+        pairs,
+        |pair: Pair<Rule>| match pair.as_rule() {
+            Rule::cond => into_ast_cond(pair.into_inner()),
+            Rule::uatom => {
+                let mut inner = pair.into_inner();
+                match inner.next().map(|p| p.as_rule()) {
+                    Some(Rule::unot) => CAst::Not(
+                        inner
+                            .next()
+                            .map(Pairs::single)
+                            .map(into_ast_cond)
+                            .map(Box::from)
+                            .unwrap(),
+                    ),
+                    _ => unreachable!(),
+                }
+            }
+            Rule::batom => {
+                let mut inner = pair.into_inner();
+                let left = inner.next().map(Pairs::single).map(into_ast_expr).unwrap();
+                let cmp = inner
+                    .next()
+                    .ok_or(anyhow::Error::msg("Missing comparison token"))
+                    .and_then(|s| s.as_str().parse())
+                    .unwrap();
+                let right = inner.next().map(Pairs::single).map(into_ast_expr).unwrap();
+                CAst::Cmp(cmp, left, right)
+            }
+            _ => unreachable!(),
+        },
+        |lhs: CAst, op: Pair<Rule>, rhs: CAst| match op.as_rule() {
+            Rule::cand => CAst::And(Box::from(lhs), Box::from(rhs)),
+            Rule::cor => CAst::Or(Box::from(lhs), Box::from(rhs)),
             _ => unreachable!(),
         },
     )

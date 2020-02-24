@@ -19,9 +19,27 @@ root = _{ SOI ~ decls ~ EOI }
     forced_block = { "{" ~ "\n"? ~ stmts ~ "\n"? ~ "}" }
     	stmts = _{ (stmt ~ ("\n" ~ stmt)*)? }
 	block = _{ forced_block | stmt }
-	    stmt = _{ return_stmt | decl_stmt | assign_stmt | call_stmt }
+	    stmt = { if_stmt | while_stmt | return_stmt | decl_stmt | assign_stmt | call_stmt }
 		decl_stmt = { "var" ~ ident }
 		assign_stmt = { ident ~ "=" ~ expr }
+		while_stmt = {"while" ~ "(" ~ cond ~ ")" ~ block }
+		if_stmt = { "if" ~ "(" ~ cond ~ ")" ~ block ~ ("else" ~ block)? }
+		    cond = { catom ~ (cbinop ~ catom)* }
+		        cbinop = { cand | cor | cle | clt | cge | cgt }
+		        cand = {"and"}
+		        cor = {"or"}
+		        catom = _{ uatom | batom | "(" ~ cond ~ ")" }
+		            batom = { expr ~ cmp ~ expr }
+		            uatom = { ucmp ~ catom }
+		            cmp = @{cle|clt|cge|cgt|ceq|cne}
+		            ucmp = _{ unot }
+		                unot = { "not" }
+                    cle = {"<"}
+                    clt = {"<="}
+                    cge = {">="}
+                    cgt = {">"}
+                    cne = {"!="}
+                    ceq = {"=="}
 		call_stmt = _{ fun_call }
 		return_stmt = { "return" ~ expr }
 		expr = { atom ~ (binop ~ atom)* }

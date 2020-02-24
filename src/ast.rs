@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display, Error, Formatter};
+use std::str::FromStr;
 
 use crate::env::FnSignature;
 
@@ -69,6 +70,29 @@ impl Binop {
             Binop::Add | Binop::Sub => 0,
             Binop::Mult => 1,
         }
+    }
+}
+
+impl FromStr for Compare {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use Compare::*;
+        let res = match s.trim() {
+            ">" => Gt,
+            ">=" => Ge,
+            "<" => Lt,
+            "<=" => Le,
+            "==" => Eq,
+            "!=" => Ne,
+            _ => {
+                return Err(anyhow::Error::msg(format!(
+                    "Unknown comparison token {}",
+                    s
+                )))
+            }
+        };
+        Ok(res)
     }
 }
 
