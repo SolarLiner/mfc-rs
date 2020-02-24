@@ -12,10 +12,11 @@ ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
 fun_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
 root = _{ SOI ~ stmt ~ EOI }
-    stmt = _{ decl_stmt | assign_stmt | call_stmt }
+    stmt = _{ return_stmt | decl_stmt | assign_stmt | call_stmt }
 	decl_stmt = { "var" ~ ident }
 	assign_stmt = { ident ~ "=" ~ expr }
 	call_stmt = _{ fun_call }
+	return_stmt = { "return" ~ expr }
     expr = { atom ~ (binop ~ atom)* }
         binop = _{badd|bsub|bmul}
             badd = {"+"}

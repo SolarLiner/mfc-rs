@@ -55,6 +55,7 @@ fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
             let args = inner.map(Pairs::single).map(into_ast_expr).collect();
             SAst::Call(RAst::Id(ident), args)
         }
+        Rule::return_stmt => SAst::Ret(into_ast_expr(pair.into_inner())),
         _ => unimplemented!(),
     }
 }
