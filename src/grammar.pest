@@ -10,6 +10,7 @@ COMMENT = _{ ("/*" ~ (!"*/" ~ ANY)* ~ "*/") | ("//" ~ (!"\n" ~ ANY)*) }
 number = { ASCII_DIGIT+ }
 ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
 fun_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+delim = _{ "\n" | ";" }
 
 check = _{ SOI ~ decls ~ EOI? }
 root = _{ SOI ~ decls ~ EOI }
@@ -18,7 +19,7 @@ root = _{ SOI ~ decls ~ EOI }
     extern_fun_decl = { "extern" ~ "fun" ~ ident ~ "(" ~ (ident ~ ("," ~ ident)*)? ~ ")" }
     fun_decl = { "fun" ~ ident ~ "(" ~ (ident ~ ("," ~ ident)*)? ~ ")" ~ forced_block }
     forced_block = { "{" ~ "\n"? ~ stmts ~ "\n"? ~ "}" }
-    	stmts = _{ (stmt ~ ("\n" ~ stmt)*)? }
+    	stmts = _{ (stmt ~ (delim ~ stmt)*)? }
 	block = _{ forced_block | stmt }
 	    stmt = { if_stmt | while_stmt | return_stmt | decl_stmt | assign_stmt | call_stmt }
 		decl_stmt = { "var" ~ ident }
