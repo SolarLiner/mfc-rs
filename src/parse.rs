@@ -27,6 +27,15 @@ lazy_static! {
     };
 }
 
+pub fn is_complete(input: &str) -> bool {
+    GENParser::parse(Rule::check, input)
+        .map(|mut p| {
+            eprintln!("{}", p);
+            p.find(|p| p.as_rule() == Rule::EOI).is_some()
+        })
+        .unwrap_or(true)
+}
+
 pub fn parse(input: &str) -> anyhow::Result<SAst> {
     parse_raw(input)?
         .next()
@@ -39,21 +48,23 @@ pub fn parse_raw(input: &str) -> Result<Pairs<Rule>, Error<Rule>> {
 }
 
 fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
-    match pair.as_rule() {
+    let raw = match pair.as_rule() {
         Rule::fun_decl => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_owned();
             let mut args: Vec<_> = inner.collect();
-            let block = args.pop().unwrap();
-            let returns = block
-                .clone()
+            let block: Vec<_> = args
+                .pop()
+                .unwrap()
                 .into_inner()
-                .filter(|p| p.as_rule() == Rule::return_stmt)
-                .count();
-            SAst::DeclareFun(
-                FnSignature(ident, args.len(), returns.max(0).min(1)),
-                block.into_inner().map(into_ast_stmt).collect(),
-            )
+                .map(into_ast_stmt)
+                .collect();
+            let returns_amt = if block.iter().any(block_has_return) {
+                1
+            } else {
+                0
+            };
+            SAst::DeclareFun(FnSignature(ident, args.len(), returns_amt), block)
         }
         Rule::forced_block => SAst::Block(pair.into_inner().map(into_ast_stmt).collect()),
         Rule::block => SAst::Block(pair.into_inner().map(into_ast_stmt).collect()),
@@ -105,14 +116,15 @@ fn into_ast_stmt(pair: Pair<Rule>) -> SAst {
             SAst::While(cond, Box::from(block))
         }
         _ => unimplemented!(),
-    }
+    };
+    raw.simplify()
 }
 
 fn into_ast_expr(pairs: Pairs<Rule>) -> EAst {
     use EAst::*;
     PC_EXPR.climb(
         pairs,
-        |pair: Pair<Rule>| match dbg!(&pair).as_rule() {
+        |pair: Pair<Rule>| match pair.as_rule() {
             Rule::number => Cst(pair.as_str().trim().parse().unwrap()),
             Rule::expr => into_ast_expr(pair.into_inner()),
             Rule::ident => {
@@ -128,9 +140,9 @@ fn into_ast_expr(pairs: Pairs<Rule>) -> EAst {
             _ => unreachable!(),
         },
         |lhs: EAst, op: Pair<Rule>, rhs: EAst| match op.as_rule() {
-            Rule::badd => Binop(ast::Binop::Add, Box::from(lhs), Box::from(rhs)),
-            Rule::bsub => Binop(ast::Binop::Sub, Box::from(lhs), Box::from(rhs)),
-            Rule::bmul => Binop(ast::Binop::Mult, Box::from(lhs), Box::from(rhs)),
+            Rule::badd => EBinop(ast::Binop::Add, Box::from(lhs), Box::from(rhs)),
+            Rule::bsub => EBinop(ast::Binop::Sub, Box::from(lhs), Box::from(rhs)),
+            Rule::bmul => EBinop(ast::Binop::Mult, Box::from(lhs), Box::from(rhs)),
             _ => unreachable!(),
         },
     )
@@ -175,4 +187,15 @@ fn into_ast_cond(pairs: Pairs<Rule>) -> CAst {
             _ => unreachable!(),
         },
     )
+}
+
+fn block_has_return(a: &SAst) -> bool {
+    match a {
+        SAst::Ret(..) => true,
+        SAst::Declare(..) | SAst::DeclareFun(..) | SAst::DeclareExternFun(..) => false,
+        SAst::Call(..) | SAst::Set(..) => false,
+        SAst::Block(v) => v.iter().any(block_has_return),
+        SAst::While(_, b) => block_has_return(b),
+        SAst::If(_, ba, bb) => block_has_return(ba) || block_has_return(bb),
+    }
 }

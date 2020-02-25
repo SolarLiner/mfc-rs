@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use crate::env::FnSignature;
 
+pub type Value = isize;
 type BEAst = Box<EAst>;
 type BCAst = Box<CAst>;
 type BSAst = Box<SAst>;
@@ -36,11 +37,11 @@ pub enum RAst {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EAst {
-    Cst(usize),
+    Cst(Value),
     Ref(RAst),
     ECall(RAst, Vec<EAst>),
-    Unop(Unop, BEAst),
-    Binop(Binop, BEAst, BEAst),
+    EUnop(Unop, BEAst),
+    EBinop(Binop, BEAst, BEAst),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,6 +50,7 @@ pub enum CAst {
     Or(BCAst, BCAst),
     Not(BCAst),
     Cmp(Compare, EAst, EAst),
+    Bool(bool),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,11 +66,107 @@ pub enum SAst {
     Block(Vec<SAst>),
 }
 
+impl Unop {
+    pub fn exec(&self, v: Value) -> Value {
+        match self {
+            Unop::Neg => -v,
+        }
+    }
+}
+
 impl Binop {
     pub fn prec(&self) -> usize {
         match self {
             Binop::Add | Binop::Sub => 0,
             Binop::Mult => 1,
+        }
+    }
+    pub fn exec(&self, a: Value, b: Value) -> Value {
+        match self {
+            Binop::Add => a + b,
+            Binop::Sub => a - b,
+            Binop::Mult => a * b,
+        }
+    }
+}
+
+impl Compare {
+    pub fn compare(&self, a: isize, b: isize) -> bool {
+        use Compare::*;
+        match self {
+            Lt => a < b,
+            Le => a <= b,
+            Gt => a > b,
+            Ge => a >= b,
+            Ne => a != b,
+            Eq => a == b,
+        }
+    }
+}
+
+impl EAst {
+    pub fn simplify(&self) -> Option<Value> {
+        use EAst::*;
+        match self {
+            Cst(a) => Some(*a),
+            EUnop(unop, b) => b.simplify().map(|b| unop.exec(b)),
+            EBinop(binop, a, b) => match (a.simplify(), b.simplify()) {
+                (Some(a), Some(b)) => Some(binop.exec(a, b)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
+impl SAst {
+    pub fn simplify(self) -> Self {
+        use SAst::*;
+        match self {
+            If(c, by, bn) => {
+                if let Some(r) = c.simplify() {
+                    if r {
+                        *by
+                    } else {
+                        *bn
+                    }
+                } else {
+                    If(c, by, bn)
+                }
+            }
+            While(c, b) => {
+                if let Some(true) = c.simplify() {
+                    eprintln!("WARNING: Infinite loop:\n{}", While(c, b.clone()));
+                    While(CAst::Bool(true), b)
+                } else {
+                    Block(vec![])
+                }
+            }
+            x => x,
+        }
+    }
+}
+
+impl CAst {
+    pub fn simplify(&self) -> Option<bool> {
+        use CAst::*;
+        use EAst::*;
+        match self {
+            Cmp(c, Cst(a), Cst(b)) => Some(c.compare(*a, *b)),
+            Cmp(c, a, b) => match (a.simplify(), b.simplify()) {
+                (Some(a), Some(b)) => Some(c.compare(a, b)),
+                _ => None,
+            },
+            And(a, b) => match (a.simplify(), b.simplify()) {
+                (Some(a), Some(b)) => Some(a && b),
+                _ => None,
+            },
+            Or(a, b) => match (a.simplify(), b.simplify()) {
+                (Some(a), Some(b)) => Some(a || b),
+                _ => None,
+            },
+            Not(a) => a.simplify().map(|b| !b),
+            Bool(b) => Some(*b),
         }
     }
 }
@@ -140,16 +238,16 @@ impl Display for RAst {
 impl Display for EAst {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         match self {
-            EAst::Unop(u, o) => write!(f, "{} {}", u, o),
-            EAst::Binop(b, o1, o2) => {
+            EAst::EUnop(u, o) => write!(f, "{} {}", u, o),
+            EAst::EBinop(b, o1, o2) => {
                 let l = match o1.as_ref() {
-                    EAst::Binop(e, o11, o12) if b.prec() > e.prec() => {
+                    EAst::EBinop(e, o11, o12) if b.prec() > e.prec() => {
                         format!("({} {} {})", o11, e, o12)
                     }
                     x => format!("{}", x),
                 };
                 let r = match o2.as_ref() {
-                    EAst::Binop(e, o21, o22) if b.prec() > e.prec() => {
+                    EAst::EBinop(e, o21, o22) if b.prec() > e.prec() => {
                         format!("({} {} {})", o21, e, o22)
                     }
                     x => format!("{}", x),
@@ -178,6 +276,7 @@ impl Display for CAst {
             CAst::Not(c) => write!(f, "not {}", c),
             CAst::Or(l, r) => write!(f, "{} or {}", l, r),
             CAst::And(l, r) => write!(f, "{} and {}", l, r),
+            CAst::Bool(b) => write!(f, "{}", b),
         }
     }
 }

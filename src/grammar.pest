@@ -11,6 +11,7 @@ number = { ASCII_DIGIT+ }
 ident = @{ ("_"|ASCII_ALPHA) ~ ("_"|ASCII_ALPHANUMERIC)*}
 fun_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
+check = _{ SOI ~ decls ~ EOI? }
 root = _{ SOI ~ decls ~ EOI }
 	decls = _{ decl ~ ("\n" ~ decl)* }
 	decl = _{ extern_fun_decl | fun_decl }

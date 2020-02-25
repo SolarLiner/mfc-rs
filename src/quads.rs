@@ -12,7 +12,7 @@ pub enum Quad {
     QIfp(String, usize),
     QUnop(Unop, String, String),
     QSet(String, String),
-    QSeti(String, usize),
+    QSeti(String, Value),
     QStr(String, String),
     QLd(String, String),
     QLabel(String),
@@ -125,7 +125,7 @@ impl Quad {
     pub fn quad_e(e: EAst, env: &mut Env) -> (Vec<Quad>, String) {
         use EAst::*;
         match e {
-            Binop(op, e1, e2) => {
+            EBinop(op, e1, e2) => {
                 let r = env.new_tmp();
                 let (q1, r1) = Self::quad_e(*e1, env);
                 let (q2, r2) = Self::quad_e(*e2, env);
@@ -202,6 +202,8 @@ impl Quad {
                     v
                 }
             }
+            Bool(true) => vec![QGoto(si.to_string())],
+            Bool(false) => vec![QGoto(sinon.to_string())],
         }
     }
 
